@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -50,6 +51,7 @@ class SessionServiceTest {
     @BeforeEach
     void createSessionService() {
         given(commonService.getProperty(PluginSettings.SESSIONS_ENABLED)).willReturn(true);
+        given(commonService.getProperty(PluginSettings.SESSIONS_EXCLUDED_PLAYERS)).willReturn(Set.of());
         sessionService = new SessionService(commonService, bukkitService, dataSource);
     }
 
@@ -81,7 +83,9 @@ class SessionServiceTest {
 
         // then
         assertThat(result, equalTo(false));
-        verify(commonService, only()).getProperty(PluginSettings.SESSIONS_ENABLED);
+        verify(commonService).getProperty(PluginSettings.SESSIONS_ENABLED);
+        verify(commonService).getProperty(PluginSettings.SESSIONS_EXCLUDED_PLAYERS);
+        verifyNoMoreInteractions(commonService);
         verify(dataSource, only()).hasSession(name);
     }
 
@@ -177,6 +181,7 @@ class SessionServiceTest {
         assertThat(result, equalTo(true));
         verify(commonService).getProperty(PluginSettings.SESSIONS_ENABLED);
         verify(commonService).getProperty(PluginSettings.SESSIONS_TIMEOUT);
+        verify(commonService).getProperty(PluginSettings.SESSIONS_EXCLUDED_PLAYERS);
         verifyNoMoreInteractions(commonService);
         verify(dataSource).setUnlogged(name);
         verify(dataSource).revokeSession(name);
@@ -220,6 +225,92 @@ class SessionServiceTest {
         assertThat(result, equalTo(false));
         verify(dataSource).setUnlogged(name);
         verify(dataSource).revokeSession(name);
+    }
+
+    @Test
+    void shouldNotResumeSessionForExcludedPlayer() {
+        // given
+        excludePlayers("bobby");
+        String name = "Bobby";
+        Player player = mock(Player.class);
+        given(player.getName()).willReturn(name);
+        given(dataSource.hasSession(name)).willReturn(true);
+
+        // when
+        boolean result = sessionService.canResumeSession(player);
+
+        // then
+        assertThat(result, equalTo(false));
+        verify(dataSource).hasSession(name);
+        verify(dataSource).setUnlogged(name);
+        verify(dataSource).revokeSession(name);
+        verifyNoMoreInteractions(dataSource);
+        verifyNoInteractions(bukkitService);
+    }
+
+    @Test
+    void shouldResumeSessionForPlayerNotInExclusionList() {
+        // given
+        excludePlayers("alice");
+        String name = "Bobby";
+        String ip = "127.3.12.15";
+        Player player = mockPlayerWithNameAndIp(name, ip);
+        given(commonService.getProperty(PluginSettings.SESSIONS_TIMEOUT)).willReturn(8);
+        given(dataSource.hasSession(name)).willReturn(true);
+        PlayerAuth auth = PlayerAuth.builder()
+            .name(name)
+            .lastLogin(System.currentTimeMillis() - 60 * 1000)
+            .lastIp(ip).build();
+        given(dataSource.getAuth(name)).willReturn(auth);
+        given(bukkitService.createAndCallEvent(any(Function.class))).willReturn(new RestoreSessionEvent(player, false));
+
+        // when
+        boolean result = sessionService.canResumeSession(player);
+
+        // then
+        assertThat(result, equalTo(true));
+    }
+
+    @Test
+    void shouldNotReportValidSessionForExcludedPlayer() {
+        // given
+        excludePlayers("bobby");
+
+        // when
+        boolean result = sessionService.hasValidSession("Bobby", "127.3.12.15");
+
+        // then
+        assertThat(result, equalTo(false));
+        verifyNoInteractions(dataSource);
+    }
+
+    @Test
+    void shouldNotGrantSessionToExcludedPlayer() {
+        // given
+        excludePlayers("bobby");
+
+        // when
+        sessionService.grantSession("Bobby");
+
+        // then
+        verifyNoInteractions(dataSource);
+    }
+
+    @Test
+    void shouldGrantSessionToPlayerNotInExclusionList() {
+        // given
+        excludePlayers("alice");
+
+        // when
+        sessionService.grantSession("bobby");
+
+        // then
+        verify(dataSource, only()).grantSession("bobby");
+    }
+
+    private void excludePlayers(String... names) {
+        given(commonService.getProperty(PluginSettings.SESSIONS_EXCLUDED_PLAYERS)).willReturn(Set.of(names));
+        sessionService.reload();
     }
 
     private static Player mockPlayerWithNameAndIp(String name, String ip) {

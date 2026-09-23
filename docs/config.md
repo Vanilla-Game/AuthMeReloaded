@@ -123,6 +123,14 @@ settings:
         # After how many minutes should a session expire?
         # A player's session ends after the timeout or if his IP has changed
         timeout: 10
+        # Players listed here never get their session restored and must
+        # always authenticate, even if their IP hasn't changed.
+        # Useful when several players share the same IP address.
+        # It is case-insensitive! Example:
+        # excludedPlayers:
+        # - 'playerOne'
+        # - 'playerTwo'
+        excludedPlayers: []
     # Message language, available languages:
     # https://github.com/AuthMe/AuthMeReloaded/blob/master/docs/translations.md
     messagesLanguage: en

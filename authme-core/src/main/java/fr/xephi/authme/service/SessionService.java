@@ -12,6 +12,8 @@ import fr.xephi.authme.util.PlayerUtils;
 import org.bukkit.entity.Player;
 
 import javax.inject.Inject;
+import java.util.Locale;
+import java.util.Set;
 
 import static fr.xephi.authme.util.Utils.MILLIS_PER_MINUTE;
 
@@ -26,6 +28,7 @@ public class SessionService implements Reloadable {
     private final DataSource database;
 
     private boolean isEnabled;
+    private Set<String> excludedPlayers;
 
     @Inject
     SessionService(CommonService service, BukkitService bukkitService, DataSource database) {
@@ -46,6 +49,9 @@ public class SessionService implements Reloadable {
         if (isEnabled && database.hasSession(name)) {
             database.setUnlogged(name);
             database.revokeSession(name);
+            if (isExcluded(name)) {
+                return false;
+            }
             SessionState state = fetchSessionStatus(name, database.getAuth(name), PlayerUtils.getPlayerIp(player));
             if (state.equals(SessionState.VALID)) {
                 RestoreSessionEvent event = bukkitService.createAndCallEvent(
@@ -67,7 +73,7 @@ public class SessionService implements Reloadable {
      * @return true if the player's session is currently valid, false otherwise
      */
     public boolean hasValidSession(String playerName, String ipAddress) {
-        if (!isEnabled || ipAddress == null || !database.hasSession(playerName)) {
+        if (!isEnabled || ipAddress == null || isExcluded(playerName) || !database.hasSession(playerName)) {
             return false;
         }
 
@@ -104,7 +110,7 @@ public class SessionService implements Reloadable {
     }
 
     public void grantSession(String name) {
-        if (isEnabled) {
+        if (isEnabled && !isExcluded(name)) {
             database.grantSession(name);
         }
     }
@@ -116,5 +122,10 @@ public class SessionService implements Reloadable {
     @Override
     public void reload() {
         this.isEnabled = service.getProperty(PluginSettings.SESSIONS_ENABLED);
+        this.excludedPlayers = service.getProperty(PluginSettings.SESSIONS_EXCLUDED_PLAYERS);
+    }
+
+    private boolean isExcluded(String name) {
+        return excludedPlayers.contains(name.toLowerCase(Locale.ROOT));
     }
 }
