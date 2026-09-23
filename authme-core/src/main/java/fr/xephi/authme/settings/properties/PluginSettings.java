@@ -5,9 +5,6 @@ import ch.jalu.configme.SettingsHolder;
 import ch.jalu.configme.properties.Property;
 import fr.xephi.authme.output.LogLevel;
 
-import java.util.Set;
-
-import static ch.jalu.configme.properties.PropertyInitializer.newLowercaseStringSetProperty;
 import static ch.jalu.configme.properties.PropertyInitializer.newProperty;
 
 public final class PluginSettings implements SettingsHolder {
@@ -29,18 +26,6 @@ public final class PluginSettings implements SettingsHolder {
     })
     public static final Property<Integer> SESSIONS_TIMEOUT =
         newProperty("settings.sessions.timeout", 10);
-
-    @Comment({
-        "Players listed here never get their session restored and must",
-        "always authenticate, even if their IP hasn't changed.",
-        "Useful when several players share the same IP address.",
-        "It is case-insensitive! Example:",
-        "excludedPlayers:",
-        "- 'playerOne'",
-        "- 'playerTwo'"
-    })
-    public static final Property<Set<String>> SESSIONS_EXCLUDED_PLAYERS =
-        newLowercaseStringSetProperty("settings.sessions.excludedPlayers");
 
     @Comment({
         "Message language, available languages:",

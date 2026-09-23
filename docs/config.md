@@ -1,5 +1,5 @@
 <!-- AUTO-GENERATED FILE! Do not edit this directly -->
-<!-- File auto-generated on Tue May 19 08:22:43 CEST 2026. See authme-tools/src/test/java/tools/docs/config/config.tpl.md -->
+<!-- File auto-generated on Wed Sep 23 23:23:54 CEST 2026. See authme-tools/src/test/java/tools/docs/config/config.tpl.md -->
 
 ## AuthMe Configuration
 The first time you run AuthMe it will create a config.yml file in the plugins/AuthMe folder,
@@ -123,14 +123,6 @@ settings:
         # After how many minutes should a session expire?
         # A player's session ends after the timeout or if his IP has changed
         timeout: 10
-        # Players listed here never get their session restored and must
-        # always authenticate, even if their IP hasn't changed.
-        # Useful when several players share the same IP address.
-        # It is case-insensitive! Example:
-        # excludedPlayers:
-        # - 'playerOne'
-        # - 'playerTwo'
-        excludedPlayers: []
     # Message language, available languages:
     # https://github.com/AuthMe/AuthMeReloaded/blob/master/docs/translations.md
     messagesLanguage: en
@@ -657,4 +649,4 @@ To change settings on a running server, save your changes to config.yml and use
 
 ---
 
-This page was automatically generated on the [AuthMe/AuthMeReloaded repository](https://github.com/AuthMe/AuthMeReloaded/tree/master/docs/) on Tue May 19 08:22:43 CEST 2026
+This page was automatically generated on the [AuthMe/AuthMeReloaded repository](https://github.com/AuthMe/AuthMeReloaded/tree/master/docs/) on Wed Sep 23 23:23:54 CEST 2026

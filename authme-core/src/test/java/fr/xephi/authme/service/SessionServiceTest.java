@@ -5,6 +5,8 @@ import fr.xephi.authme.data.auth.PlayerAuth;
 import fr.xephi.authme.datasource.DataSource;
 import fr.xephi.authme.events.RestoreSessionEvent;
 import fr.xephi.authme.message.MessageKey;
+import fr.xephi.authme.permission.PermissionsManager;
+import fr.xephi.authme.permission.PlayerStatePermission;
 import fr.xephi.authme.settings.properties.PluginSettings;
 import org.bukkit.entity.Player;
 import org.junit.jupiter.api.BeforeAll;
@@ -14,7 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -42,6 +43,8 @@ class SessionServiceTest {
     private CommonService commonService;
     @Mock
     private BukkitService bukkitService;
+    @Mock
+    private PermissionsManager permissionsManager;
 
     @BeforeAll
     static void initLogger() {
@@ -51,8 +54,7 @@ class SessionServiceTest {
     @BeforeEach
     void createSessionService() {
         given(commonService.getProperty(PluginSettings.SESSIONS_ENABLED)).willReturn(true);
-        given(commonService.getProperty(PluginSettings.SESSIONS_EXCLUDED_PLAYERS)).willReturn(Set.of());
-        sessionService = new SessionService(commonService, bukkitService, dataSource);
+        sessionService = new SessionService(commonService, bukkitService, dataSource, permissionsManager);
     }
 
     @Test
@@ -84,7 +86,6 @@ class SessionServiceTest {
         // then
         assertThat(result, equalTo(false));
         verify(commonService).getProperty(PluginSettings.SESSIONS_ENABLED);
-        verify(commonService).getProperty(PluginSettings.SESSIONS_EXCLUDED_PLAYERS);
         verifyNoMoreInteractions(commonService);
         verify(dataSource, only()).hasSession(name);
     }
@@ -181,7 +182,6 @@ class SessionServiceTest {
         assertThat(result, equalTo(true));
         verify(commonService).getProperty(PluginSettings.SESSIONS_ENABLED);
         verify(commonService).getProperty(PluginSettings.SESSIONS_TIMEOUT);
-        verify(commonService).getProperty(PluginSettings.SESSIONS_EXCLUDED_PLAYERS);
         verifyNoMoreInteractions(commonService);
         verify(dataSource).setUnlogged(name);
         verify(dataSource).revokeSession(name);
@@ -228,13 +228,13 @@ class SessionServiceTest {
     }
 
     @Test
-    void shouldNotResumeSessionForExcludedPlayer() {
+    void shouldNotResumeSessionForPlayerWithDisabledSessionPermission() {
         // given
-        excludePlayers("bobby");
         String name = "Bobby";
         Player player = mock(Player.class);
         given(player.getName()).willReturn(name);
         given(dataSource.hasSession(name)).willReturn(true);
+        given(permissionsManager.hasPermission(player, PlayerStatePermission.DISABLE_SESSION)).willReturn(true);
 
         // when
         boolean result = sessionService.canResumeSession(player);
@@ -249,9 +249,8 @@ class SessionServiceTest {
     }
 
     @Test
-    void shouldResumeSessionForPlayerNotInExclusionList() {
+    void shouldResumeSessionForPlayerWithoutDisabledSessionPermission() {
         // given
-        excludePlayers("alice");
         String name = "Bobby";
         String ip = "127.3.12.15";
         Player player = mockPlayerWithNameAndIp(name, ip);
@@ -272,45 +271,64 @@ class SessionServiceTest {
     }
 
     @Test
-    void shouldNotReportValidSessionForExcludedPlayer() {
+    void shouldNotReportValidSessionForPlayerWithDisabledSessionPermission() {
         // given
-        excludePlayers("bobby");
+        given(dataSource.hasSession("Bobby")).willReturn(true);
+        given(permissionsManager.hasPermissionOffline("Bobby", PlayerStatePermission.DISABLE_SESSION))
+            .willReturn(true);
 
         // when
         boolean result = sessionService.hasValidSession("Bobby", "127.3.12.15");
 
         // then
         assertThat(result, equalTo(false));
-        verifyNoInteractions(dataSource);
+        verify(dataSource, only()).hasSession("Bobby");
     }
 
     @Test
-    void shouldNotGrantSessionToExcludedPlayer() {
+    void shouldReportValidSessionForPlayerWithoutDisabledSessionPermission() {
         // given
-        excludePlayers("bobby");
+        String name = "Bobby";
+        String ip = "127.3.12.15";
+        given(dataSource.hasSession(name)).willReturn(true);
+        given(commonService.getProperty(PluginSettings.SESSIONS_TIMEOUT)).willReturn(8);
+        given(dataSource.getAuth(name)).willReturn(PlayerAuth.builder()
+            .name(name)
+            .lastLogin(System.currentTimeMillis() - 60 * 1000)
+            .lastIp(ip).build());
 
         // when
-        sessionService.grantSession("Bobby");
+        boolean result = sessionService.hasValidSession(name, ip);
+
+        // then
+        assertThat(result, equalTo(true));
+        verify(permissionsManager).hasPermissionOffline(name, PlayerStatePermission.DISABLE_SESSION);
+    }
+
+    @Test
+    void shouldNotGrantSessionToPlayerWithDisabledSessionPermission() {
+        // given
+        Player player = mock(Player.class);
+        given(permissionsManager.hasPermission(player, PlayerStatePermission.DISABLE_SESSION)).willReturn(true);
+
+        // when
+        sessionService.grantSession(player);
 
         // then
         verifyNoInteractions(dataSource);
     }
 
     @Test
-    void shouldGrantSessionToPlayerNotInExclusionList() {
+    void shouldGrantSessionToPlayerWithoutDisabledSessionPermission() {
         // given
-        excludePlayers("alice");
+        Player player = mock(Player.class);
+        given(player.getName()).willReturn("bobby");
 
         // when
-        sessionService.grantSession("bobby");
+        sessionService.grantSession(player);
 
         // then
         verify(dataSource, only()).grantSession("bobby");
-    }
-
-    private void excludePlayers(String... names) {
-        given(commonService.getProperty(PluginSettings.SESSIONS_EXCLUDED_PLAYERS)).willReturn(Set.of(names));
-        sessionService.reload();
     }
 
     private static Player mockPlayerWithNameAndIp(String name, String ip) {
